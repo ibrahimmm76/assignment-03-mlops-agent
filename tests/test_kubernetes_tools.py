@@ -48,3 +48,12 @@ def test_unreachable_cluster_is_unavailable(settings, policy):
 
     with pytest.raises(ServiceUnavailable):
         KubernetesTools(settings, policy, core=DownCore(), apps=FakeApps()).list_pods()
+
+
+def test_pod_logs_keep_startup_errors_behind_probe_noise(settings, policy):
+    noise = "\n".join('INFO:     10.1.0.1:1 - "GET /health/ready HTTP/1.1" 503 Service Unavailable' for _ in range(300))
+    core = FakeCore(logs='ERROR model file not found at /app/models/model-v2.joblib\n' + noise)
+    tools = KubernetesTools(settings, policy, core=core, apps=FakeApps())
+    logs = tools.get_pod_logs("api-1")
+    assert logs["error_lines"] == ["ERROR model file not found at /app/models/model-v2.joblib"]
+    assert logs["probe_requests"] == {"/health/ready 503": 300}

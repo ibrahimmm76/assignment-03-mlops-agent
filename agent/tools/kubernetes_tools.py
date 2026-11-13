@@ -156,11 +156,24 @@ class KubernetesTools:
     def get_pod_logs(self, pod: str, namespace: str | None = None, tail_lines: int = 50,
                      previous: bool = False) -> dict[str, Any]:
         ns = self.policy.check_namespace(namespace)
+        tail = max(1, min(int(tail_lines), 500))
+        # Probes write an access-log line every few seconds, which quickly pushes the start-up
+        # messages (e.g. "model file not found") out of a short tail. Read further back and keep
+        # probe lines only as counts.
         logs = self._call(self.core.read_namespaced_pod_log, name=pod, namespace=ns,
-                          tail_lines=max(1, min(int(tail_lines), 500)), previous=bool(previous))
-        lines = (logs or "").splitlines()
-        return {"namespace": ns, "pod": pod, "previous_container": bool(previous), "lines": lines,
-                "error_lines": [ln for ln in lines if any(k in ln for k in ("ERROR", "Error", "Traceback",
+                          tail_lines=2000, previous=bool(previous))
+        all_lines = (logs or "").splitlines()
+        probes = [ln for ln in all_lines if '"GET /health/' in ln]
+        other = [ln for ln in all_lines if '"GET /health/' not in ln]
+        probe_summary: dict[str, int] = {}
+        for ln in probes:
+            path = "/health/ready" if "/health/ready" in ln else "/health/live"
+            code = ln.rsplit('" ', 1)[-1].split(" ", 1)[0] if '" ' in ln else "?"
+            key = f"{path} {code}"
+            probe_summary[key] = probe_summary.get(key, 0) + 1
+        return {"namespace": ns, "pod": pod, "previous_container": bool(previous), "lines": other[-tail:],
+                "probe_requests": probe_summary,
+                "error_lines": [ln for ln in other if any(k in ln for k in ("ERROR", "Error", "Traceback",
                                                                            "not found", "Exception"))][-10:]}
 
     def list_services(self, namespace: str | None = None) -> dict[str, Any]:
