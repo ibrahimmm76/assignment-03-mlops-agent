@@ -79,7 +79,10 @@ def inject(kind: str) -> None:
         broken = copy.deepcopy(config)
         broken["data"]["MODEL_PATH"] = "/app/models/model-v2.joblib"  # file does not exist in the image
         apply(broken)
-        run(["kubectl", "-n", NAMESPACE, "rollout", "restart", "deployment/inference-api"])
+        # The rolling update (maxUnavailable: 0) would keep the old pods serving, so a bad ConfigMap
+        # alone only shows up when pods are recreated. Deleting them simulates that (node restart,
+        # eviction): every replacement pod reads the broken ConfigMap and the Service loses all endpoints.
+        run(["kubectl", "-n", NAMESPACE, "delete", "pods", "-l", "app=inference-api", "--wait=false"])
     elif kind == "bad-image":
         broken = copy.deepcopy(deployment)
         broken["spec"]["template"]["spec"]["containers"][0]["image"] = "inference-api:9.9.9-missing"
@@ -108,7 +111,8 @@ def main() -> int:
     elif args.inject:
         inject(args.inject)
     else:
-        deploy(build=not (args.no_build or args.restore))
+        # --restore rebuilds too, so the model baked into the image always matches the version label.
+        deploy(build=not args.no_build)
     return 0
 
 
