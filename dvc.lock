@@ -1,0 +1,30 @@
+schema: '2.0'
+stages:
+  train:
+    cmd: python -m training.train --model-type logreg --C 1.0 --no-mlflow
+    deps:
+    - path: data/raw/breast_cancer.csv
+      hash: md5
+      md5: 597f07978de0eb402b7f22d9f256e744
+      size: 120381
+    - path: training/config.py
+      hash: md5
+      md5: 5d75b2f464afed49351a996308ce997b
+      size: 1404
+    - path: training/steps.py
+      hash: md5
+      md5: 10dd98848db09087ffbebfa166ae6ca9
+      size: 11483
+    - path: training/train.py
+      hash: md5
+      md5: aae410cd52f06c0a87d38bba34905ecb
+      size: 2497
+    outs:
+    - path: metrics.json
+      hash: md5
+      md5: bc3e42ff8fe9cdd7b70a2aafa2fdfc60
+      size: 112
+    - path: models/candidate.joblib
+      hash: md5
+      md5: 74f8d533556b425fad7c3fd41a5ab449
+      size: 3105
