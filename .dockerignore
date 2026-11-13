@@ -1,0 +1,7 @@
+# Only the API code, its requirements and the promoted model go into the image.
+*
+!api/
+!models/model.joblib
+!models/model_metadata.json
+!requirements-api.txt
+**/__pycache__

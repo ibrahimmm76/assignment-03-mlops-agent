@@ -1,0 +1,15 @@
+# Non-sensitive configuration for the inference API.
+# MODEL_VERSION is filled in by scripts/deploy_k8s.py from models/model_metadata.json.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inference-api-config
+  namespace: mlops-demo
+  labels:
+    app: inference-api
+data:
+  APP_VERSION: "1.0.0"
+  MODEL_PATH: /app/models/model.joblib
+  METADATA_PATH: /app/models/model_metadata.json
+  MODEL_VERSION: "unknown"
+  LOG_LEVEL: INFO

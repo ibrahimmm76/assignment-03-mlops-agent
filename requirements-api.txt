@@ -1,0 +1,6 @@
+# Inference API image only. scikit-learn must match the version used for training.
+fastapi==0.162.4
+uvicorn[standard]==0.54.0
+scikit-learn==1.9.1
+pandas>=2.2,<4
+joblib==1.6.0
