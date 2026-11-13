@@ -133,7 +133,7 @@ the raw result of every tool call. Every answer was checked against the UIs and 
 | 2 | Model selection (last five runs, F1) | `evidence/02_model_selection.md` | `mlflow_list_runs` → `mlflow_find_best_run` | correct: ranked all runs, skipped the top-F1 run because it failed the gate, recommended `0898bb7e…`; stated that only 3 runs existed |
 | 3 | Pipeline execution | `evidence/03_pipeline_execution.md` | `airflow_list_dags` → `airflow_trigger_dag` (confirmed with `y`) → `airflow_wait_for_dag_run` | correct: run `success`, all six tasks `success` |
 | 4 | Deployment diagnosis | `evidence/04_deployment_diagnosis.md` | `k8s_find_unhealthy_pods` → `k8s_list_services` → `k8s_get_deployed_version` → `k8s_get_pod_logs` | correct root cause: `model file not found at /app/models/model-v2.joblib`, 0 ready endpoints |
-| 5 | Multi-tool reasoning (mandatory scenario) | `evidence/05_multi_tool.md` | `mlflow_find_best_run` → `k8s_get_deployed_version` → `mlflow_check_model_freshness` → `dvc_find_version_by_hash` | correct, see section 5 |
+| 5 | Multi-tool reasoning (mandatory scenario) | `evidence/05_multi_tool.md` | `mlflow_find_best_run` → `mlflow_check_model_freshness` → `dvc_get_current_version` → `k8s_get_deployed_version` → `k8s_find_unhealthy_pods` → `airflow_get_dag_runs` | correct conclusion from all four systems, see section 5 |
 | 6 | Pipeline failure investigation | `evidence/06_failure_airflow.md` | `airflow_list_dags` → `airflow_get_dag_runs` → `airflow_get_failed_tasks` | correct, see section 6.1 |
 
 **1. Dataset provenance.** The agent started from the registry, not from the dataset: it found the
@@ -164,25 +164,37 @@ half right.
 *"Find the best recent model, identify the dataset version used to train it, check the deployment
 status, and explain whether retraining is necessary."*
 
-The agent used three of the four systems in one answer:
+The agent used all four systems in one answer, calling six tools:
 
-1. `mlflow_find_best_run`: best gate-passed run `0898bb7e…` (logistic regression, F1 0.9861),
+1. `mlflow_find_best_run`: best gate-passed run `36c3e205…` (`logreg-20261113-100750`, F1 0.9861),
    with its `dataset.dvc_md5` tag.
-2. `k8s_get_deployed_version`: Deployment `inference-api` in `mlops-demo`, 2/2 ready, serving
-   model version 2.
-3. `mlflow_check_model_freshness`: champion age 0 days against the 30-day policy,
-   `retraining_indicated_by_policy: false`.
-4. `dvc_find_version_by_hash`: the md5 maps to `data-v2`, commit `32186cc`, which is also the
-   current dataset version.
+2. `mlflow_check_model_freshness`: champion age 0.1 days against the 30-day policy, F1 above the
+   0.90 minimum, `retraining_indicated_by_policy: false`.
+3. `dvc_get_current_version`: the workspace dataset is `data-v2` with md5 `597f0797…`, the same
+   hash recorded on the run, so the model was trained on the latest data.
+4. `k8s_get_deployed_version`: Deployment `inference-api` in `mlops-demo`, 2/2 ready, serving
+   model version 4.
+5. `k8s_find_unhealthy_pods`: no unhealthy pods; only older readiness-probe warnings from the
+   injected failure.
+6. `airflow_get_dag_runs`: recent training runs, including the successful run from scenario 3 and
+   the two injected failures.
 
-**Conclusion given by the agent:** retraining is not necessary. The model is fresh, passes the
-gate, and was trained on the latest data. The agent noted that no production degradation data
-exists, so that criterion could not be checked. It did **not** trigger a run.
+**Conclusion given by the agent:** retraining is not necessary. The champion is fresh, passes the
+gate, was trained on the current dataset version and is healthy in Kubernetes. The agent noted that
+no production drift or degradation data exists, so that criterion could not be checked. It did
+**not** trigger a run.
 
-**A real finding from this scenario.** The deployed champion (v2, random forest, F1 0.9655) is not
-the best gate-passing model (v1, logistic regression, F1 0.9861). The pipeline promotes the *latest*
-model that passes the gate, not the *best* one. The agent picked this up and suggested considering
-v1 for promotion. See section 8.
+**Weakness.** The agent fetched the Airflow runs but did not mention them in its answer. The most
+recent run had failed (the injected `bad_data` run), which was worth stating, even though it does
+not change the conclusion because that failure was in data validation, not in the deployed model.
+The evidence file contains the full Airflow result.
+
+**A real finding from the earlier run of this scenario** (before scenario 3 promoted v4). The
+deployed champion was v2 (random forest, F1 0.9655), while an older gate-passing logistic
+regression run had F1 0.9861. The pipeline promotes the *latest* model that passes the gate, not the
+*best* one. The agent picked this up and suggested considering the better run for promotion. See
+section 8. The first run also used only three systems; the instructions to the agent now require
+Airflow, MLflow, DVC and Kubernetes for retraining questions.
 
 ## 6. Failure investigations
 
