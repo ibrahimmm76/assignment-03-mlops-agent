@@ -1,0 +1,16 @@
+# Agent, training pipeline and inference API (Python 3.11 - 3.13).
+# Versions match the Docker images in docker/ and the API image.
+openai>=1.40,<3
+mlflow==3.18.0
+dvc==3.67.1
+kubernetes==37.0.1
+requests>=2.31,<3
+scikit-learn==1.9.1
+pandas>=2.2,<4
+joblib==1.6.0
+skops==0.16.0
+fastapi==0.162.4
+uvicorn[standard]==0.54.0
+pydantic>=2.7,<3
+PyYAML>=6.0,<7
+python-dotenv>=1.0,<2
