@@ -1,0 +1,57 @@
+# MLflow tracking server + Apache Airflow 3 (standalone) for local development.
+#
+#   docker compose up -d --build
+#   MLflow:  http://localhost:5000
+#   Airflow: http://localhost:8080  (user "admin", password = AIRFLOW_PASSWORD from .env)
+#
+# The project folder is mounted into Airflow at /opt/project, so the DAG runs the same
+# training code and reads the DVC-tracked dataset from your working copy.
+name: mlops-agent
+
+services:
+  mlflow:
+    build:
+      context: .
+      dockerfile: docker/mlflow.Dockerfile
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlflow/artifacts
+      --allowed-hosts mlflow,mlflow:5000,localhost,localhost:5000,127.0.0.1,127.0.0.1:5000,host.docker.internal,host.docker.internal:5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    restart: unless-stopped
+
+  airflow:
+    build:
+      context: .
+      dockerfile: docker/airflow.Dockerfile
+    depends_on:
+      - mlflow
+    environment:
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/project/dags
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: admin:admin
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: /opt/airflow/passwords.json
+      AIRFLOW__API__HOST: 0.0.0.0
+      AIRFLOW__API__PORT: "8080"
+      AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: "30"
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_PASSWORD:?set AIRFLOW_PASSWORD in .env}
+      PROJECT_ROOT: /opt/project
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_DISABLE_AGENT_HINT: "1"
+    # The password comes from .env and is written into the auth manager's password file at
+    # start-up, so no credential is stored in the repository.
+    command: >
+      bash -c 'printf "{\"admin\": \"%s\"}" "$$AIRFLOW_ADMIN_PASSWORD" > /opt/airflow/passwords.json
+      && exec airflow standalone'
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/opt/project
+    restart: unless-stopped
+
+volumes:
+  mlflow-data:
