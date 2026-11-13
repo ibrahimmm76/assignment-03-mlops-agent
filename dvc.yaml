@@ -1,0 +1,16 @@
+# Reproducible offline training: `dvc repro` re-runs only when the data or code changed.
+# The full pipeline with MLflow logging, quality gate and promotion runs in Airflow
+# (dags/training_pipeline.py) or with `python -m training.train`.
+stages:
+  train:
+    cmd: python -m training.train --model-type logreg --C 1.0 --no-mlflow
+    deps:
+      - data/raw/breast_cancer.csv
+      - training/steps.py
+      - training/train.py
+      - training/config.py
+    outs:
+      - models/candidate.joblib
+    metrics:
+      - metrics.json:
+          cache: false
