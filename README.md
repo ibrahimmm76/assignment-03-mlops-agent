@@ -257,7 +257,7 @@ pytest
 ruff check .
 ```
 
-The 38 tests need no running services: MLflow, Airflow and Kubernetes are replaced by fakes. The
+The 39 tests need no running services: MLflow, Airflow and Kubernetes are replaced by fakes. The
 DVC tests build a real temporary git and DVC repository. The suite covers:
 
 * tool selection and multi-tool execution with a scripted model;
@@ -281,7 +281,7 @@ Four failures can be injected on purpose, two in the pipeline and two in the dep
 |---|---|---|---|
 | 1 | Trigger the DAG with `{"inject_failure": "bad_data"}` | `validate_data` fails (target column missing), all downstream tasks are blocked | *Why did the latest training run fail?* |
 | 2 | Trigger the DAG with `{"min_f1": 0.999}` | `quality_gate` fails, `promote_model` is blocked and the deployed model is unchanged | *Why was the new model not promoted?* |
-| 3 | `python scripts/deploy_k8s.py --inject missing-model` | pods start but never become ready (model file not found), so the Service has 0 endpoints | *Why is my prediction API unavailable?* |
+| 3 | `python scripts/deploy_k8s.py --inject missing-model` | the pods are recreated with the broken ConfigMap, start but never become ready (model file not found), so the Service has 0 endpoints | *Why is my prediction API unavailable?* |
 | 4 | `python scripts/deploy_k8s.py --inject bad-image` | new pods stay in `ImagePullBackOff`, and the rollout stalls | *Why isn't the new version rolling out?* |
 
 Undo 3 and 4 with `python scripts/deploy_k8s.py --restore`. The expected diagnosis and its evidence
